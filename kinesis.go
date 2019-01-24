@@ -18,8 +18,9 @@ const (
 )
 
 var (
-	ErrRecordSizeExceeded        = errors.New("kinesis: record size exceeded")
-	ErrRecordsPerRequestExceeded = errors.New("kinesis: max records per request exceeded")
+	ErrPutRequestSizeExceeded    = errors.New("kinesis: Max put request size exceeded.")
+	ErrRecordSizeExceeded        = errors.New("kinesis: Individual record size exceeded.")
+	ErrRecordsPerRequestExceeded = errors.New("kinesis: Max records per request exceeded.")
 )
 
 type Producer struct {
@@ -41,31 +42,54 @@ func New(streamName string, awsSession *session.Session) *Producer {
 	}
 }
 
-func createPutRecordsRequestEntry(record record.Record) *kinesis.PutRecordsRequestEntry {
+func createPutRecordsRequestEntry(record record.Record) (*kinesis.PutRecordsRequestEntry, error) {
+	if len(record.Data) > MaxRecordSize {
+		return nil, ErrRecordSizeExceeded
+	}
 	return &kinesis.PutRecordsRequestEntry{
 		Data:         utils.CloneByteSlice(record.Data),
 		PartitionKey: aws.String(record.PartitionKey),
-	}
+	}, nil
 }
 
-func createPutRecordsInput(streamName string, records []record.Record) *kinesis.PutRecordsInput {
-	putRecordsInput := kinesis.PutRecordsInput{
-		StreamName: aws.String(streamName),
-	}
-	for _, record := range records {
-		putRecordsInput.Records = append(
-			putRecordsInput.Records,
-			createPutRecordsRequestEntry(record),
-		)
-	}
-	return &putRecordsInput
-}
-
-func (producer *Producer) PutRecords(streamName string, records []record.Record) (*kinesis.PutRecordsOutput, error) {
+func createPutRecordsInput(streamName string, records []record.Record) (*kinesis.PutRecordsInput, error) {
 	if len(records) > MaxRecordsPerRequest {
 		return nil, ErrRecordsPerRequestExceeded
 	}
-	resp, err := producer.client.PutRecords(createPutRecordsInput(producer.streamName, records))
+
+	putRecordsInput := kinesis.PutRecordsInput{
+		StreamName: aws.String(streamName),
+	}
+
+	var totalSize int
+	for _, record := range records {
+
+		recordsRequestEntry, err := createPutRecordsRequestEntry(record)
+
+		if err != nil {
+			return nil, err
+		}
+
+		putRecordsInput.Records = append(putRecordsInput.Records, recordsRequestEntry)
+
+		totalSize += len(record.Data)
+		if totalSize > MaxPutRequestSize {
+			return nil, ErrPutRequestSizeExceeded
+		}
+	}
+	return &putRecordsInput, nil
+}
+
+func (producer *Producer) PutRecords(streamName string, records []record.Record) (*kinesis.PutRecordsOutput, error) {
+
+	putRecordsInput, err := createPutRecordsInput(producer.streamName, records)
+
+	if err != nil {
+		producer.log.Error(err)
+		return nil, err
+	}
+
+	resp, err := producer.client.PutRecords(putRecordsInput)
 
 	if err != nil {
 		producer.log.Error(err)
@@ -73,22 +97,26 @@ func (producer *Producer) PutRecords(streamName string, records []record.Record)
 	return resp, err
 }
 
-func createPutRecordInput(streamName string, record record.Record) *kinesis.PutRecordInput {
+func createPutRecordInput(streamName string, record record.Record) (*kinesis.PutRecordInput, error) {
+	if len(record.Data) > MaxPutRequestSize {
+		return nil, ErrRecordSizeExceeded
+	}
 	return &kinesis.PutRecordInput{
 		PartitionKey: aws.String(record.PartitionKey),
 		StreamName:   aws.String(streamName),
 		Data:         utils.CloneByteSlice(record.Data),
-	}
+	}, nil
 }
 
 func (producer *Producer) PutRecord(streamName string, record record.Record) (*kinesis.PutRecordOutput, error) {
-	if len(record.Data) > MaxRecordSize {
-		return nil, ErrRecordSizeExceeded
+	input, err := createPutRecordInput(streamName, record)
+
+	if err != nil {
+		producer.log.Error(err)
+		return nil, err
 	}
 
-	input := createPutRecordInput(streamName, record)
-
-	producer.log.Info("PutRecord: Going to write data to kinesis")
+	producer.log.Printf("PutRecord: Stream %s\n", streamName)
 
 	resp, err := producer.client.PutRecord(input)
 
