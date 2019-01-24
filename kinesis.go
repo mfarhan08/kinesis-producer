@@ -6,6 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
+	"github.com/lordfarhan40/kinesis-producer/record"
 	"github.com/lordfarhan40/kinesis-producer/utils"
 	"github.com/sirupsen/logrus"
 )
@@ -40,19 +41,18 @@ func New(streamName string, awsSession *session.Session) *Producer {
 	}
 }
 
-func createPutRecordsRequestEntry(data []byte) *kinesis.PutRecordsRequestEntry {
-	randomPartitionKey := utils.GenerateUUID()
+func createPutRecordsRequestEntry(record record.Record) *kinesis.PutRecordsRequestEntry {
 	return &kinesis.PutRecordsRequestEntry{
-		Data:         data,
-		PartitionKey: aws.String(randomPartitionKey),
+		Data:         utils.CloneByteSlice(record.Data),
+		PartitionKey: aws.String(record.PartitionKey),
 	}
 }
 
-func createPutRecordsInput(streamName string, data [][]byte) *kinesis.PutRecordsInput {
+func createPutRecordsInput(streamName string, records []record.Record) *kinesis.PutRecordsInput {
 	putRecordsInput := kinesis.PutRecordsInput{
 		StreamName: aws.String(streamName),
 	}
-	for _, record := range data {
+	for _, record := range records {
 		putRecordsInput.Records = append(
 			putRecordsInput.Records,
 			createPutRecordsRequestEntry(record),
@@ -61,14 +61,11 @@ func createPutRecordsInput(streamName string, data [][]byte) *kinesis.PutRecords
 	return &putRecordsInput
 }
 
-func (producer *Producer) PutRecords(data [][]byte) (*kinesis.PutRecordsOutput, error) {
-	if len(data) > MaxRecordsPerRequest {
+func (producer *Producer) PutRecords(streamName string, records []record.Record) (*kinesis.PutRecordsOutput, error) {
+	if len(records) > MaxRecordsPerRequest {
 		return nil, ErrRecordsPerRequestExceeded
 	}
-
-	producer.log.Info("PutRecords: Going to write data to kinesis")
-
-	resp, err := producer.client.PutRecords(createPutRecordsInput(producer.streamName, data))
+	resp, err := producer.client.PutRecords(createPutRecordsInput(producer.streamName, records))
 
 	if err != nil {
 		producer.log.Error(err)
@@ -76,20 +73,20 @@ func (producer *Producer) PutRecords(data [][]byte) (*kinesis.PutRecordsOutput, 
 	return resp, err
 }
 
-func createPutRecordInput(streamName string, data []byte) *kinesis.PutRecordInput {
+func createPutRecordInput(streamName string, record record.Record) *kinesis.PutRecordInput {
 	return &kinesis.PutRecordInput{
-		PartitionKey: aws.String(utils.GenerateUUID()),
+		PartitionKey: aws.String(record.PartitionKey),
 		StreamName:   aws.String(streamName),
-		Data:         data,
+		Data:         utils.CloneByteSlice(record.Data),
 	}
 }
 
-func (producer *Producer) PutRecord(data []byte) (*kinesis.PutRecordOutput, error) {
-	if len(data) > MaxRecordSize {
+func (producer *Producer) PutRecord(streamName string, record record.Record) (*kinesis.PutRecordOutput, error) {
+	if len(record.Data) > MaxRecordSize {
 		return nil, ErrRecordSizeExceeded
 	}
 
-	input := createPutRecordInput(producer.streamName, data)
+	input := createPutRecordInput(streamName, record)
 
 	producer.log.Info("PutRecord: Going to write data to kinesis")
 
