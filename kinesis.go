@@ -42,7 +42,7 @@ func New(streamName string, awsSession *session.Session) *Producer {
 	}
 }
 
-func createPutRecordsRequestEntry(record record.Record) (*kinesis.PutRecordsRequestEntry, error) {
+func createPutRecordsRequestEntry(record *record.Record) (*kinesis.PutRecordsRequestEntry, error) {
 	if len(record.Data) > MaxRecordSize {
 		return nil, ErrRecordSizeExceeded
 	}
@@ -52,7 +52,7 @@ func createPutRecordsRequestEntry(record record.Record) (*kinesis.PutRecordsRequ
 	}, nil
 }
 
-func createPutRecordsInput(streamName string, records []record.Record) (*kinesis.PutRecordsInput, error) {
+func createPutRecordsInput(streamName string, records []*record.Record) (*kinesis.PutRecordsInput, error) {
 	if len(records) > MaxRecordsPerRequest {
 		return nil, ErrRecordsPerRequestExceeded
 	}
@@ -80,7 +80,7 @@ func createPutRecordsInput(streamName string, records []record.Record) (*kinesis
 	return &putRecordsInput, nil
 }
 
-func (producer *Producer) PutRecords(streamName string, records []record.Record) (*kinesis.PutRecordsOutput, error) {
+func (producer *Producer) PutRecords(records []*record.Record) (*kinesis.PutRecordsOutput, error) {
 
 	putRecordsInput, err := createPutRecordsInput(producer.streamName, records)
 
@@ -97,7 +97,7 @@ func (producer *Producer) PutRecords(streamName string, records []record.Record)
 	return resp, err
 }
 
-func createPutRecordInput(streamName string, record record.Record) (*kinesis.PutRecordInput, error) {
+func createPutRecordInput(streamName string, record *record.Record) (*kinesis.PutRecordInput, error) {
 	if len(record.Data) > MaxPutRequestSize {
 		return nil, ErrRecordSizeExceeded
 	}
@@ -108,15 +108,15 @@ func createPutRecordInput(streamName string, record record.Record) (*kinesis.Put
 	}, nil
 }
 
-func (producer *Producer) PutRecord(streamName string, record record.Record) (*kinesis.PutRecordOutput, error) {
-	input, err := createPutRecordInput(streamName, record)
+func (producer *Producer) PutRecord(record *record.Record) (*kinesis.PutRecordOutput, error) {
+	input, err := createPutRecordInput(producer.streamName, record)
 
 	if err != nil {
 		producer.log.Error(err)
 		return nil, err
 	}
 
-	producer.log.Printf("PutRecord: Stream %s\n", streamName)
+	producer.log.Printf("PutRecord: Stream %s\n", producer.streamName)
 
 	resp, err := producer.client.PutRecord(input)
 
