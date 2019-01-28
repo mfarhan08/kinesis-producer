@@ -6,8 +6,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
-	"github.com/lordfarhan40/kinesis-producer/record"
-	"github.com/lordfarhan40/kinesis-producer/utils"
+	"github.com/mfarhan08/kinesis-producer/record"
+	"github.com/mfarhan08/kinesis-producer/utils"
 	"github.com/sirupsen/logrus"
 )
 

@@ -1,7 +1,7 @@
 package record
 
 import (
-	"github.com/lordfarhan40/kinesis-producer/utils"
+	"github.com/mfarhan08/kinesis-producer/utils"
 )
 
 type Record struct {
