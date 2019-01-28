@@ -12,26 +12,41 @@ import (
 	"fmt"
 
 	kinesis_producer "github.com/lordfarhan40/kinesis-producer"
+	"github.com/lordfarhan40/kinesis-producer/record"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 )
 
 func main() {
 	session := session.New(aws.NewConfig())
-
 	producer := kinesis_producer.New("test_stream", session)
 
-    //Writing single record example
-    input1 := []byte("Data Pack")
-    producer.PutRecord(input1)
-    
-    //Writing multiple records example
-	input2 := [][]byte{
-		[]byte("Data Pack 1"),
-		[]byte("Data Pack 2"),
-	}
+	//Writing single record example
+	input1 := record.New([]byte("Hello"))
+	output1, _ := producer.PutRecord(input1)
 
-	producer.PutRecords(input2)
+	fmt.Println("Result after PutRecord")
+	fmt.Println(output1)
+
+	//Print Records
+	input2 := make([]*record.Record, 0)
+	input2 = append(input2, record.New([]byte("Record 1")))
+	input2 = append(input2, record.New([]byte("Record 2")))
+
+	output2, _ := producer.PutRecords(input2)
+
+	fmt.Println("Result after PutRecords")
+	fmt.Println(output2)
+
+	//Records with custom PartitionKey
+
+	input3 := record.New([]byte("Custom Partition Key Paylod")).WithPartitionKey("Random Partition")
+
+	output3, _ := producer.PutRecord(input3)
+
+	fmt.Println(output3)
 }
+
 ```
